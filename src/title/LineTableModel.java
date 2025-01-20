@@ -83,6 +83,9 @@ public class LineTableModel extends AbstractTableModel implements IMessageEditor
 	public LineTableModel(GUIMain guiMain,List<LineEntry> entries){
 		this(guiMain);
 		for (LineEntry entry:entries) {
+			if (entry == null || entry.getUrl() == null){
+				continue;
+			}
 			lineEntries.put(entry.getUrl(), entry);
 		}
 	}
@@ -702,13 +705,13 @@ public class LineTableModel extends AbstractTableModel implements IMessageEditor
 			e.printStackTrace(stderr);
 		}
 	}
-
+	
 	/**
 	 * 删除明显非目标的记录
-	 * 1、host的类型时useless，并且来源是certain。这类记录往往是由于删除了某些根域名造成的。
+	 * 1、host的类型是useless，并且来源是certain。这类记录往往是由于删除了某些根域名造成的。
 	 * 2、来自custom(网络搜索引擎添加、手动添加),但是其证书域名明显不是目标的
 	 */
-	public void removeRowsNotInTargets() {
+	public void MarkNotTargetRows() {
 		TargetTableModel model = guiMain.getDomainPanel().getTargetTable().getTargetModel();
 
 		for (int i=lineEntries.size()-1;i>=0 ;i-- ) {//降序删除才能正确删除每个元素
@@ -724,19 +727,26 @@ public class LineTableModel extends AbstractTableModel implements IMessageEditor
 					continue;
 				}
 
-				String url = entry.getUrl();
+				
 				String host = entry.getHost();
 				int port = entry.getPort();
 
 				int type = model.assetType(host);
+				
+				if (type == DomainManager.IP_ADDRESS) {
+					//避免网段内IP、内网IP被删除，应该通过网段信息判断
+					continue;
+				}
+				
 				//规则1
 				if (DomainUtils.isValidDomainNoPort(host)) {
 					if ((type == DomainManager.USELESS || type==DomainManager.SIMILAR_DOMAIN)
 							&& entry.getEntrySource().equals(LineEntry.Source_Certain)) {
-						lineEntries.remove(i);
-						titleDao.deleteTitleByUrl(url);//写入数据库
-						stdout.println("!!! "+url+" deleted, due to host is not target");
-						this.fireTableRowsDeleted(i,i);
+						
+						entry.addComment("Non-Target[host is not target]");
+						titleDao.addOrUpdateTitle(entry);//写入数据库
+						this.fireTableRowsUpdated(i, i);
+						
 						continue;
 					}
 				}else {
@@ -758,10 +768,11 @@ public class LineTableModel extends AbstractTableModel implements IMessageEditor
 								) {
 							guiMain.getDomainPanel().getDomainResult().getSpecialPortTargets().remove(host);
 							guiMain.getDomainPanel().getDomainResult().getNotTargetIPSet().add(host);
-							lineEntries.remove(i);
-							titleDao.deleteTitleByUrl(url);//写入数据库
-							stdout.println("!!! "+url+" deleted, due to cert domain is not target");
-							this.fireTableRowsDeleted(i,i);
+							
+							entry.addComment("Non-Target[cert domain is not target]");
+							titleDao.addOrUpdateTitle(entry);//写入数据库
+							this.fireTableRowsUpdated(i, i);
+							
 							continue;
 						}
 					}else {
@@ -769,14 +780,41 @@ public class LineTableModel extends AbstractTableModel implements IMessageEditor
 						Set<String> customIP = guiMain.getDomainPanel().getDomainResult().getSpecialPortTargets();
 
 						if (!customIP.contains(host) && !customIP.contains(host+":"+port)) {
-							lineEntries.remove(i);
-							titleDao.deleteTitleByUrl(url);//写入数据库
-							stdout.println("!!! "+url+" deleted, duo to host IP not in custom assets");
-							this.fireTableRowsDeleted(i,i);
+							
+							entry.addComment("Non-Target[host IP not in custom assets]");
+							titleDao.addOrUpdateTitle(entry);//写入数据库
+							this.fireTableRowsUpdated(i, i);
+							
 							continue;
 						}
 					}
 				}
+			} catch (Exception e) {
+				e.printStackTrace(stderr);
+			}
+		}
+	}
+
+	/**
+	 * 先标记，再删除，给用户识别空间，以便优化规则。
+	 */
+	public void removeRowsNotInTargets() {
+		MarkNotTargetRows();
+
+		for (int i=lineEntries.size()-1;i>=0 ;i-- ) {//降序删除才能正确删除每个元素
+			try {
+				LineEntry entry = lineEntries.get(i);
+				if (entry == null) {
+					continue;
+				}
+				if (entry.getComments().toString().contains("Non-Target[")) {
+					String url = entry.getUrl();
+					lineEntries.remove(i);
+					titleDao.deleteTitleByUrl(url);//写入数据库
+					stdout.println("!!! "+url+" deleted, due to : "+entry.getComments().toString());
+					this.fireTableRowsDeleted(i,i);
+				}
+				
 			} catch (Exception e) {
 				e.printStackTrace(stderr);
 			}

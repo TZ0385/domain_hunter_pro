@@ -62,13 +62,13 @@ public class SearchPanel extends JPanel {
 			frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 			frame.setVisible(true);
 
-
 			SearchResultEntry test = new SearchResultEntry();
 			test.setHost("8.8.8.8");
 			test.setPort(88);
 			test.setProtocol("https");
 
-			SearchTableModel searchTableModel = new SearchTableModel(null, new ArrayList<SearchResultEntry>(Collections.singletonList(test)));
+			SearchTableModel searchTableModel = new SearchTableModel(null,
+					new ArrayList<SearchResultEntry>(Collections.singletonList(test)));
 			SearchTable searchTable = new SearchTable(null, searchTableModel);
 
 			frame.getContentPane().add(searchTable);
@@ -87,7 +87,8 @@ public class SearchPanel extends JPanel {
 			test.setHost("8.8.8.8");
 			test.setPort(88);
 			test.setProtocol("https");
-			spanel.addSearchTab("111", new ArrayList<SearchResultEntry>(Collections.singletonList(test)), new ArrayList<String>(Collections.singletonList("xxx")));
+			spanel.addSearchTab("111", new ArrayList<SearchResultEntry>(Collections.singletonList(test)),
+					new ArrayList<String>(Collections.singletonList("xxx")));
 		});
 	}
 
@@ -125,13 +126,13 @@ public class SearchPanel extends JPanel {
 	}
 
 	public void addSearchTab(String tabName, List<SearchResultEntry> entries, List<String> engines) {
-		JPanel containerpanel = new JPanel();//Tab的最外层容器面板
+		JPanel containerpanel = new JPanel();// Tab的最外层容器面板
 		containerpanel.setLayout(new BorderLayout(0, 0));
 
 		SearchTableModel searchTableModel = new SearchTableModel(this.guiMain, entries);
 		SearchTable searchTable = new SearchTable(this.guiMain, searchTableModel);
 		JScrollPane scrollPane = new JScrollPane(searchTable, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
-				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);//table area
+				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);// table area
 
 		JLabel status = new JLabel("^_^");
 		status.setText(getStatusInfo(entries, engines));
@@ -139,8 +140,7 @@ public class SearchPanel extends JPanel {
 		containerpanel.add(scrollPane, BorderLayout.CENTER);
 		containerpanel.add(status, BorderLayout.SOUTH);
 
-
-		//用一个panel实现tab那个小块
+		// 用一个panel实现tab那个小块
 		JPanel tabPanel = new JPanel(new BorderLayout());
 
 		JLabel titleLabel = new JLabel(tabName);
@@ -152,18 +152,16 @@ public class SearchPanel extends JPanel {
 		closeButton.addActionListener(new CloseTabListener(centerPanel, containerpanel));
 		tabPanel.add(closeButton, BorderLayout.EAST);
 
-
 		centerPanel.addTab(null, containerpanel);
 		int index = centerPanel.getTabCount() - 1;
 		centerPanel.setTabComponentAt(index, tabPanel);
-
 
 		centerPanel.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				if (SwingUtilities.isRightMouseButton(e)) {
 					showPopupMenu(centerPanel, e);
-				}else if (SwingUtilities.isLeftMouseButton(e)) {
+				} else if (SwingUtilities.isLeftMouseButton(e)) {
 					int tabIndex = centerPanel.getSelectedIndex();
 					if (tabIndex != -1) {
 						Component selectedComponent = centerPanel.getTabComponentAt(tabIndex);
@@ -180,7 +178,6 @@ public class SearchPanel extends JPanel {
 			}
 		});
 	}
-
 
 	public String getStatusInfo(List<SearchResultEntry> entries, List<String> engines) {
 		Map<String, Integer> status = new HashMap<>();
@@ -203,7 +200,6 @@ public class SearchPanel extends JPanel {
 
 		return new Gson().toJson(status);
 	}
-
 
 	static class CloseTabListener implements ActionListener {
 		private JTabbedPane tabbedPane;
@@ -232,6 +228,8 @@ public class SearchPanel extends JPanel {
 		JMenuItem closeCurrentTabMenuItem = new JMenuItem("Close Current Tab");
 		closeCurrentTabMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
+				// 需要先获取tabText，再移除tab，否则会获取失败
+				APISearchAction.searchedContent.remove(getTabTextByIndex(tabIndex));
 				tabbedPane.remove(tabIndex);
 			}
 		});
@@ -241,6 +239,7 @@ public class SearchPanel extends JPanel {
 		JMenuItem closeAllTabsMenuItem = new JMenuItem("Close All Tabs");
 		closeAllTabsMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
+				APISearchAction.searchedContent.clear();
 				tabbedPane.removeAll();
 			}
 		});
@@ -251,6 +250,7 @@ public class SearchPanel extends JPanel {
 		closeTabsToLeftMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				for (int i = tabIndex - 1; i >= 0; i--) {
+					APISearchAction.searchedContent.remove(getTabTextByIndex(i));
 					tabbedPane.remove(i);
 				}
 			}
@@ -262,19 +262,17 @@ public class SearchPanel extends JPanel {
 		closeTabsToRightMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				for (int i = tabbedPane.getTabCount() - 1; i > tabIndex; i--) {
+					APISearchAction.searchedContent.remove(getTabTextByIndex(i));
 					tabbedPane.remove(i);
 				}
 			}
 		});
 		popupMenu.add(closeTabsToRightMenuItem);
 
-
 		JMenuItem copyTabNameMenuItem = new JMenuItem("Copy Tab Name");
 		copyTabNameMenuItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				JPanel panel = ((JPanel) tabbedPane.getTabComponentAt(tabIndex));
-				JLabel lab = (JLabel) panel.getComponent(0);
-				SystemUtils.writeToClipboard(lab.getText());
+				SystemUtils.writeToClipboard(getTabTextByIndex(tabIndex));
 			}
 		});
 		popupMenu.add(copyTabNameMenuItem);
@@ -283,41 +281,23 @@ public class SearchPanel extends JPanel {
 		popupMenu.show(tabbedPane, e.getX(), e.getY());
 	}
 
-	public Set<String> getAlreadySearchContent(){
-		HashSet<String> result = new HashSet<String>();
-		for (int i = centerPanel.getTabCount() - 1; i >= 0; i--) {
+	public String getTabTextByIndex(int i) {
+		try {
 			JPanel panel = ((JPanel) centerPanel.getTabComponentAt(i));
 			JLabel lab = (JLabel) panel.getComponent(0);
-			result.add(lab.getText());
+			return lab.getText();
+		} catch (Exception e) {
+			e.printStackTrace();
+			return "";
 		}
-		return result;
 	}
 
-	public static void searchAtBackground(String content) {
-		SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-			@Override
-			protected Void doInBackground() throws Exception {
-				String searchType = null;
-
-				if (DomainUtils.isValidDomainNoPort(content)) {
-					searchType = SearchType.SubDomain;
-				} else if (IPAddressUtils.isValidIPv4NoPort(content)) {
-					searchType = SearchType.IP;
-				} else {
-					searchType = SearchType.OriginalString;
-				}
-
-				APISearchAction.DoSearchAllInOn(searchType, content, SearchEngine.getAssetSearchEngineList());
-
-				return null;
-			}
-
-			@Override
-			protected void done() {
-
-			}
-		};
-		worker.execute();
+	public Set<String> getAlreadySearchContent() {
+		HashSet<String> result = new HashSet<String>();
+		for (int i = centerPanel.getTabCount() - 1; i >= 0; i--) {
+			result.add(getTabTextByIndex(i));
+		}
+		return result;
 	}
 
 	public JPanel createButtonPanel() {
@@ -332,48 +312,36 @@ public class SearchPanel extends JPanel {
 		buttonSearch.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				String content = textFieldSearch.getText();
-				searchAtBackground(content);
+				APISearchAction.DoSearchAllInOnAtBackGround(null, content, SearchEngine.getAssetSearchEngineList());
 			}
 		});
 		buttonPanel.add(buttonSearch);
 
-
 		JButton buttonSearchAs = new JButton("Search As");
 		buttonSearchAs.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
-					@Override
-					protected Void doInBackground() throws Exception {
-						String content = textFieldSearch.getText();
+				String content = textFieldSearch.getText();
 
-						String searchType = SearchType.choseSearchType();
-						switch (searchType) {
-						case SearchType.Email:
-							APISearchAction.DoSearchAllInOn(searchType, content, SearchEngine.getEmailSearchEngineList());
-							break;
-						case SearchType.IconHash:
-							if (UrlUtils.isVaildUrl(content)) {
-								byte[] imageData = WebIcon.getFavicon(content);
-								if (imageData.length > 0) {
-									content = WebIcon.getHash(imageData);
-								}
-							}
-						default:
-							APISearchAction.DoSearchAllInOn(searchType, content, SearchEngine.getAssetSearchEngineList());
+				String searchType = SearchType.choseSearchType();
+				switch (searchType) {
+				case SearchType.Email:
+					APISearchAction.DoSearchAllInOnAtBackGround(searchType, content,
+							SearchEngine.getEmailSearchEngineList());
+					break;
+				case SearchType.IconHash:
+					if (UrlUtils.isVaildUrl(content)) {
+						byte[] imageData = WebIcon.downloadFavicon(content);
+						if (imageData.length > 0) {
+							content = WebIcon.getHash(imageData);
 						}
-						return null;
 					}
-
-					@Override
-					protected void done() {
-
-					}
-				};
-				worker.execute();
+				default:
+					APISearchAction.DoSearchAllInOnAtBackGround(searchType, content,
+							SearchEngine.getAssetSearchEngineList());
+				}
 			}
 		});
 		buttonPanel.add(buttonSearchAs);
-
 
 		lblSummary = new JLabel("^_^");
 		buttonPanel.add(lblSummary);

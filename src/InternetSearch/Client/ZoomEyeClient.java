@@ -33,53 +33,127 @@ public class ZoomEyeClient extends BaseClient {
 		try {
 			JSONObject obj = new JSONObject(respbody);
 			int status = obj.getInt("status");
-			if (status ==200) {
+			if (status == 200) {
 				JSONArray results = obj.getJSONArray("matches");
 				for (Object item : results) {
-
-					JSONObject entryitem = (JSONObject) item;
-					Set<String> ipSet = getIPSet(entryitem);
 					SearchResultEntry entry = new SearchResultEntry();
-
-					entry.getIPSet().addAll(ipSet);
+					JSONObject entryitem = (JSONObject) item;
 
 					try {
-						entry.setHost(entryitem.getString("rdns"));
+						// IP
+						Set<String> ipSet = getIPSet(entryitem);
+						entry.getIPSet().addAll(ipSet);
+
+						// Host
+						try {
+							entry.setHost(entryitem.getString("rdns"));
+						} catch (Exception e) {
+							try {
+								entry.setHost(entryitem.getString("site"));
+							} catch (Exception e1) {
+								entry.setHost((String) (ipSet.toArray())[0]);
+							}
+						}
+
+						JSONObject portinfo = null;
+						try {
+							portinfo = entryitem.getJSONObject("portinfo");
+						} catch (Exception e) {
+
+						}
+
+						if (portinfo != null) {
+							try {
+								// port
+								int port = entryitem.getJSONObject("portinfo").getInt("port");
+								entry.setPort(port);
+								// protocol
+								String serviceName = entryitem.getJSONObject("portinfo").getString("service");
+								entry.setProtocol(serviceName);
+							} catch (Exception e4) {
+								// org.json.JSONException: JSONObject["portinfo"] not found.
+								// e4.printStackTrace();
+							}
+
+							// title
+							try {
+								String title = entryitem.getJSONObject("portinfo").getString("title");
+								if (title != null) {
+									entry.setTitle(title);
+								}
+							} catch (Exception e) {
+								try {
+									JSONArray titleArray = entryitem.getJSONObject("portinfo").getJSONArray("title");
+									if (titleArray != null) {
+										entry.setTitle(titleArray.getString(0));
+									}
+								} catch (Exception e1) {
+
+								}
+							}
+						}
+
+						// title
+						if (StringUtils.isEmpty(entry.getTitle())) {
+
+							try {
+								String title = entryitem.getString("title");
+								if (title != null) {
+									entry.setTitle(title);
+								}
+							} catch (Exception e2) {
+								try {
+									JSONArray titleArray = entryitem.getJSONArray("title_list");
+									if (titleArray != null) {
+										entry.setTitle(titleArray.getString(0));
+									}
+								} catch (Exception e3) {
+									// e3.printStackTrace();
+								}
+							}
+						}
+
+						try {
+							String asn = entryitem.getJSONObject("geoinfo").getString("asn");
+							if (asn != null) {
+								entry.setAsnNum(Integer.parseInt(asn));
+							}
+							String asn_org = entryitem.getJSONObject("geoinfo").getString("organization");
+							if (asn_org != null) {
+								entry.setASNInfo(asn_org);
+							}
+						} catch (Exception e) {
+
+						}
+
+						entry.setSource(getEngineName());
+						result.add(entry);
 					} catch (Exception e) {
-						entry.setHost((String)(ipSet.toArray())[0]);
+						e.printStackTrace(stderr);
+						stderr.println(entryitem.toString());
 					}
-
-					int port = entryitem.getJSONObject("portinfo").getInt("port");
-					entry.setPort(port);
-
-					String serviceName = entryitem.getJSONObject("portinfo").getString("service");
-					entry.setProtocol(serviceName);
-					
-					JSONArray titleArray = entryitem.getJSONObject("portinfo").getJSONArray("title");
-					if (titleArray != null) {
-						entry.setTitle(titleArray.getString(0));
-					}
-
-					entry.setSource(getEngineName());
-					result.add(entry);
 				}
 				return result;
 			}
-		} catch (Exception e) {
+		} catch (
+
+		Exception e) {
 			e.printStackTrace(stderr);
 		}
+
 		printDebugInfo();
 		return result;
+
 	}
 
-	public static Set<String> getIPSet(JSONObject entryitem){
+	public static Set<String> getIPSet(JSONObject entryitem) {
 		Set<String> result = new HashSet<String>();
 
 		try {
-			//title:xxx 获得的是IP string
+			// title:xxx 获得的是IP string
 			result.add(entryitem.getString("ip"));
-		}catch(Exception e) {
-			//site:xxx.com 获得的是IP List
+		} catch (Exception e) {
+			// site:xxx.com 获得的是IP List
 			JSONArray ipList = entryitem.getJSONArray("ip");
 			for (int i = 0; i < ipList.length(); i++) {
 				String element = ipList.getString(i);
@@ -90,7 +164,7 @@ public class ZoomEyeClient extends BaseClient {
 	}
 
 	@Override
-	public boolean hasNextPage(String respbody,int currentPage) {
+	public boolean hasNextPage(String respbody, int currentPage) {
 		// "size":83,"page":1,
 		try {
 			int pageSize = 10;
@@ -114,26 +188,20 @@ public class ZoomEyeClient extends BaseClient {
 			stderr.println("zoomeye key not configurated!");
 			return null;
 		}
-		//https://www.zoomeye.hk/api/domain/search?q=google.com&p=1&s=10&type=1
-		//https://www.zoomeye.hk/api/search?q=site%3A%22baidu.com%22&page=1
-		String url = String.format(
-				"https://www.zoomeye.hk/api/search?q=%s&page=%s",searchContent,page);
+		// https://www.zoomeye.hk/api/domain/search?q=google.com&p=1&s=10&type=1
+		// https://www.zoomeye.hk/api/search?q=site%3A%22baidu.com%22&page=1
+		String url = String.format("https://www.zoomeye.hk/api/search?q=%s&page=%s", searchContent, page);
 		return url;
 	}
 
 	@Override
 	public byte[] buildRawData(String searchContent, int page) {
-		//site:"baidu.com"
-		String raw = "GET /api/search?q=%s&page=%s HTTP/1.1\r\n"
-				+ "Host: www.zoomeye.hk\r\n"
+		// site:"baidu.com"
+		String raw = "GET /api/search?q=%s&page=%s HTTP/1.1\r\n" + "Host: www.zoomeye.hk\r\n"
 				+ "Accept: application/json, text/plain, */*\r\n"
 				+ "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\r\n"
-				+ "Accept-Encoding: gzip, deflate\r\n"
-				+ "Accept-Language: zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7\r\n"
-				+ "API-KEY: %s\r\n"
-				+ "Connection: close\r\n"
-				+ "\r\n"
-				+ "";
+				+ "Accept-Encoding: gzip, deflate\r\n" + "Accept-Language: zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7\r\n"
+				+ "API-KEY: %s\r\n" + "Connection: close\r\n" + "\r\n" + "";
 
 		searchContent = URLEncoder.encode(searchContent);
 		String key = ConfigManager.getStringConfigByKey(ConfigName.ZoomEyeAPIKey);
@@ -142,13 +210,14 @@ public class ZoomEyeClient extends BaseClient {
 			return null;
 		}
 		int size = 500;
-		int start = size*(page-1); 
-		raw = String.format(raw,searchContent,page,key);
+		int start = size * (page - 1);
+		raw = String.format(raw, searchContent, page, key);
 		return raw.getBytes();
 	}
 
 	public static void main(String[] args) throws IOException {
-		String aaa = FileUtils.readFileToString(new File("G:/github/domain_hunter_pro/src/InternetSearch/Client/example_data_ZoomEye.txt"),"UTF-8");
+		String aaa = FileUtils.readFileToString(
+				new File("G:/github/domain_hunter_pro/src/InternetSearch/Client/example_data_ZoomEye2.txt"), "UTF-8");
 		System.out.println(new ZoomEyeClient().parseResp(aaa));
 	}
 }

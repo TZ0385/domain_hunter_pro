@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
@@ -81,6 +82,40 @@ public class TargetEntryMenu extends JPopupMenu {
 				clipboard.setContents(selection, null);
 			}
 		});
+		
+		JMenuItem copyWhois = new JMenuItem(new AbstractAction("Copy Whois Query Cmd") {
+			@Override
+			public void actionPerformed(ActionEvent actionEvent) {
+				List<String> results = new ArrayList<String>();
+				for (int row : modelRows) {
+					String rootDomain = (String) rootDomainTable.getTargetModel().getValueAt(row, rootDomainColumnIndex);
+					results.add(rootDomain);
+				}
+				
+				String cmdPrefix = ConfigManager.getStringConfigByKey(ConfigName.WhoisQueryCmd);
+				String cmd = cmdPrefix+" "+String.join(" ", results);
+				SystemUtils.writeToClipboard(cmd);
+			}
+		});
+		
+		JMenuItem copyRootDomainsSpace = new JMenuItem(new AbstractAction("Copy Root Domains (space separated)") {
+			@Override
+			public void actionPerformed(ActionEvent actionEvent) {
+				try{
+					List<String> results = new ArrayList<String>();
+					for (int row : modelRows) {
+						String rootDomain = (String) rootDomainTable.getTargetModel().getValueAt(row, rootDomainColumnIndex);
+						results.add(rootDomain);
+					}
+					
+					SystemUtils.writeToClipboard(String.join(" ", results));
+				}
+				catch (Exception e1)
+				{
+					e1.printStackTrace(stderr);
+				}
+			}
+		});
 
 		JMenuItem zoneTransferCheck = new JMenuItem(new AbstractAction("Do Zone Transfer Check") {
 			@Override
@@ -145,6 +180,17 @@ public class TargetEntryMenu extends JPopupMenu {
 				rootDomainTable.getTargetModel().updateComments(modelRows, Comments);
 			}
 		});
+		
+		JMenuItem batchRemoveCommentItem = new JMenuItem(new AbstractAction("Remove Comment") {
+			@Override
+			public void actionPerformed(ActionEvent actionEvent) {
+				String Comment = JOptionPane.showInputDialog("Comment", null).trim();
+				while (StringUtils.isBlank(Comment)) {
+					Comment = JOptionPane.showInputDialog("Comment", null).trim();
+				}
+				rootDomainTable.getTargetModel().removeComments(modelRows, Comment);
+			}
+		});
 
 		JMenuItem batchClearCommentsItem = new JMenuItem(new AbstractAction("Clear Comments") {
 			@Override
@@ -168,7 +214,10 @@ public class TargetEntryMenu extends JPopupMenu {
 		this.add(itemNumber);
 		this.add(getSubDomainsOf);
 		this.add(copyEmails);
+		this.add(copyWhois);
+		this.add(copyRootDomainsSpace);
 		this.add(batchAddCommentsItem);
+		this.add(batchRemoveCommentItem);
 		this.add(batchClearCommentsItem);
 		this.add(addToBlackItem);
 		this.add(changeTrustLevelItem);
